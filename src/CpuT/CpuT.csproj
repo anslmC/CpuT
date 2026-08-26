@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\CpuT.Core\CpuT.Core.csproj" />
+    <ProjectReference Include="..\CpuT.Windows\CpuT.Windows.csproj" />
+    <ProjectReference Include="..\CpuT.Linux\CpuT.Linux.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
