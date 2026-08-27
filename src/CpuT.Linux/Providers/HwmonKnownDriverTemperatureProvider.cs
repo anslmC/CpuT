@@ -37,6 +37,9 @@ internal sealed class HwmonKnownDriverTemperatureProvider : ITemperatureProvider
         return TemperatureResult.Unsupported("No supported Linux CPU hwmon driver was found.");
     }
 
-    public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(TryRead());
+    public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(TryRead());
+    }
 }

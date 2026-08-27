@@ -1,6 +1,6 @@
 namespace CpuT.Core;
 
-internal sealed class ProviderCache
+internal sealed class ProviderCache : IDisposable
 {
     private const int FailureThreshold = 3;
     private readonly object sync = new();
@@ -17,25 +17,35 @@ internal sealed class ProviderCache
 
     public TemperatureResult Read()
     {
-        var cachedProvider = GetProvider();
-        if (cachedProvider is null)
+        discoveryGate.Wait();
+        try
         {
-            return DiscoverSynchronously();
+            var cachedProvider = GetProvider();
+            return cachedProvider is null
+                ? DiscoverSynchronously()
+                : Record(cachedProvider, ReadProvider(cachedProvider));
         }
-
-        return Record(cachedProvider, cachedProvider.TryRead());
+        finally
+        {
+            discoveryGate.Release();
+        }
     }
 
     public async Task<TemperatureResult> ReadAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var cachedProvider = GetProvider();
-        if (cachedProvider is null)
+        await discoveryGate.WaitAsync(cancellationToken);
+        try
         {
-            return await DiscoverAsync(cancellationToken);
+            var cachedProvider = GetProvider();
+            return cachedProvider is null
+                ? await DiscoverAsync(cancellationToken)
+                : Record(cachedProvider, await ReadProviderAsync(cachedProvider, cancellationToken));
         }
-
-        return Record(cachedProvider, await cachedProvider.TryReadAsync(cancellationToken));
+        finally
+        {
+            discoveryGate.Release();
+        }
     }
 
     private ITemperatureProvider? GetProvider()
@@ -48,84 +58,98 @@ internal sealed class ProviderCache
 
     private TemperatureResult DiscoverSynchronously()
     {
-        discoveryGate.Wait();
-        try
+        lock (sync)
         {
-            lock (sync)
+            if (provider is not null)
             {
-                if (provider is not null)
-                {
-                    return Record(provider, provider.TryRead());
-                }
+                return Record(provider, ReadProvider(provider));
+            }
 
-                if (cooldown.IsActive(DateTimeOffset.UtcNow))
-                {
-                    return TemperatureResult.Failed("Provider discovery is cooling down.");
-                }
+            if (cooldown.IsActive(DateTimeOffset.UtcNow))
+            {
+                return TemperatureResult.Failed("Provider discovery is cooling down.");
             }
 
             var discoveryResult = discovery.Discover();
-            lock (sync)
-            {
-                if (discoveryResult.Provider is not null)
-                {
-                    provider = discoveryResult.Provider;
-                    cooldown.Clear();
-                }
-                else
-                {
-                    cooldown.Start(DateTimeOffset.UtcNow);
-                }
-            }
-
+            UpdateDiscoveryState(discoveryResult.Provider);
             return discoveryResult.Result;
-        }
-        finally
-        {
-            discoveryGate.Release();
         }
     }
 
     private async Task<TemperatureResult> DiscoverAsync(CancellationToken cancellationToken)
     {
-        await discoveryGate.WaitAsync(cancellationToken);
         ITemperatureProvider? cachedProvider;
+        lock (sync)
+        {
+            cachedProvider = provider;
+            if (cachedProvider is null && cooldown.IsActive(DateTimeOffset.UtcNow))
+                return TemperatureResult.Failed("Provider discovery is cooling down.");
+        }
+
+        if (cachedProvider is not null)
+            return Record(cachedProvider, await ReadProviderAsync(cachedProvider, cancellationToken));
+
+        var discoveryResult = await discovery.DiscoverAsync(cancellationToken);
+        lock (sync)
+        {
+            UpdateDiscoveryState(discoveryResult.Provider);
+        }
+
+        return discoveryResult.Result;
+    }
+
+    private void UpdateDiscoveryState(ITemperatureProvider? discoveredProvider)
+    {
+        if (discoveredProvider is not null)
+        {
+            provider = discoveredProvider;
+            cooldown.Clear();
+        }
+        else
+        {
+            cooldown.Start(DateTimeOffset.UtcNow);
+        }
+    }
+
+    private static TemperatureResult ReadProvider(ITemperatureProvider provider)
+    {
         try
         {
-            lock (sync)
-            {
-                cachedProvider = provider;
-
-                if (cachedProvider is null && cooldown.IsActive(DateTimeOffset.UtcNow))
-                {
-                    return TemperatureResult.Failed("Provider discovery is cooling down.");
-                }
-            }
-
-            if (cachedProvider is not null)
-            {
-                return Record(cachedProvider, await cachedProvider.TryReadAsync(cancellationToken));
-            }
-
-            var discoveryResult = await discovery.DiscoverAsync(CancellationToken.None);
-            lock (sync)
-            {
-                if (discoveryResult.Provider is not null)
-                {
-                    provider = discoveryResult.Provider;
-                    cooldown.Clear();
-                }
-                else
-                {
-                    cooldown.Start(DateTimeOffset.UtcNow);
-                }
-            }
-
-            return discoveryResult.Result;
+            return provider.TryRead();
         }
-        finally
+        catch (OperationCanceledException)
         {
-            discoveryGate.Release();
+            throw;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return TemperatureResult.Failed("The temperature provider access was denied.", TemperatureFailureReason.AccessDenied);
+        }
+        catch (Exception)
+        {
+            return TemperatureResult.Failed("The temperature provider encountered an error.", TemperatureFailureReason.ProviderError);
+        }
+    }
+
+    private static async Task<TemperatureResult> ReadProviderAsync(
+        ITemperatureProvider provider,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await provider.TryReadAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return TemperatureResult.Failed("The temperature provider access was denied.", TemperatureFailureReason.AccessDenied);
+        }
+        catch (Exception)
+        {
+            return TemperatureResult.Failed("The temperature provider encountered an error.", TemperatureFailureReason.ProviderError);
         }
     }
 
@@ -156,4 +180,6 @@ internal sealed class ProviderCache
 
         return result;
     }
+
+    public void Dispose() => discoveryGate.Dispose();
 }

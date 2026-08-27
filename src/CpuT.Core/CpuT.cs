@@ -1,6 +1,6 @@
 namespace CpuT.Core;
 
-public sealed class CpuT
+public sealed class CpuT : IDisposable
 {
     private readonly ProviderCache cache;
 
@@ -13,4 +13,6 @@ public sealed class CpuT
 
     public Task<TemperatureResult> ReadAsync(CancellationToken cancellationToken = default) =>
         cache.ReadAsync(cancellationToken);
+
+    public void Dispose() => cache.Dispose();
 }

@@ -6,10 +6,12 @@ namespace CpuT;
 
 public static class CpuT
 {
-    public static TemperatureResult Read() => PlatformProviderComposition.Create().Read();
+    private static readonly global::CpuT.Core.CpuT shared = PlatformProviderComposition.Create();
+
+    public static TemperatureResult Read() => shared.Read();
 
     public static Task<TemperatureResult> ReadAsync(CancellationToken cancellationToken = default) =>
-        PlatformProviderComposition.Create().ReadAsync(cancellationToken);
+        shared.ReadAsync(cancellationToken);
 }
 
 public static class PlatformProviderComposition

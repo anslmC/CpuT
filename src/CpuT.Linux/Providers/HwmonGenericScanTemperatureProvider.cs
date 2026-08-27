@@ -37,6 +37,9 @@ internal sealed class HwmonGenericScanTemperatureProvider : ITemperatureProvider
         return TemperatureResult.Unsupported("No CPU-related Linux hwmon temperature sensor was found.");
     }
 
-    public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(TryRead());
+    public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(TryRead());
+    }
 }

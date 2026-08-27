@@ -46,14 +46,21 @@ internal sealed class WmiAcpiTemperatureProvider : ITemperatureProvider
         }
         catch (ManagementException)
         {
-            return TemperatureResult.Unsupported("Windows WMI/ACPI temperature telemetry is unavailable.");
+            return TemperatureResult.Failed(
+                "Windows WMI/ACPI temperature telemetry encountered an operating-system error.",
+                TemperatureFailureReason.ProviderError);
         }
         catch (UnauthorizedAccessException)
         {
-            return TemperatureResult.Unsupported("Windows WMI/ACPI temperature telemetry is unavailable.");
+            return TemperatureResult.Failed(
+                "Access to Windows WMI/ACPI temperature telemetry was denied.",
+                TemperatureFailureReason.AccessDenied);
         }
     }
 
-    public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(TryRead());
+    public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(TryRead());
+    }
 }
