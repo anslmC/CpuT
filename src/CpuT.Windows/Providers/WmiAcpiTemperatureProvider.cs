@@ -44,16 +44,37 @@ internal sealed class WmiAcpiTemperatureProvider : ITemperatureProvider
 
             return TemperatureResult.Unsupported("Windows did not expose a CPU-identified ACPI thermal zone.");
         }
-        catch (ManagementException)
+        catch (ManagementException ex)
         {
-            return TemperatureResult.Failed(
-                "Windows WMI/ACPI temperature telemetry encountered an operating-system error.",
-                TemperatureFailureReason.ProviderError);
+            if (ex.ErrorCode == ManagementStatus.AccessDenied)
+            {
+                return TemperatureResult.Failed(
+                    "Access to Windows WMI/ACPI temperature telemetry was denied. Running with administrator privileges may resolve this.",
+                    TemperatureFailureReason.AccessDenied);
+            }
+
+            if (ex.ErrorCode is ManagementStatus.NotFound or ManagementStatus.InvalidClass or ManagementStatus.NotSupported)
+            {
+                return TemperatureResult.Unsupported(
+                    "The Windows WMI/ACPI thermal zone class is not available on this system.");
+            }
+
+            var message = ex.ErrorCode switch
+            {
+                ManagementStatus.InvalidNamespace =>
+                    "The Windows WMI namespace required for ACPI temperature telemetry is unavailable.",
+                ManagementStatus.Timedout =>
+                    "The Windows WMI/ACPI temperature query timed out.",
+                _ =>
+                    "Windows WMI/ACPI temperature telemetry encountered an unexpected error."
+            };
+
+            return TemperatureResult.Failed(message, TemperatureFailureReason.ProviderError);
         }
         catch (UnauthorizedAccessException)
         {
             return TemperatureResult.Failed(
-                "Access to Windows WMI/ACPI temperature telemetry was denied.",
+                "Access to Windows WMI/ACPI temperature telemetry was denied. Running with administrator privileges may resolve this.",
                 TemperatureFailureReason.AccessDenied);
         }
     }

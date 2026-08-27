@@ -26,10 +26,10 @@ internal static class HwmonTemperatureReader
             return null;
         }
 
-        IEnumerable<string> inputPaths;
+        List<string> inputPaths;
         try
         {
-            inputPaths = Directory.EnumerateFiles(devicePath, "temp*_input").OrderBy(path => path).ToArray();
+            inputPaths = Directory.EnumerateFiles(devicePath, "temp*_input").ToList();
         }
         catch (IOException)
         {
@@ -40,15 +40,10 @@ internal static class HwmonTemperatureReader
             return null;
         }
 
+        var candidates = new List<(string InputPath, string? Label, int Priority, int Index)>();
+
         foreach (var inputPath in inputPaths)
         {
-            var raw = ReadFirstLine(inputPath);
-            if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var millidegrees))
-            {
-                continue;
-            }
-
-            var celsius = millidegrees / 1000d;
             var labelPath = Path.Combine(devicePath, Path.GetFileNameWithoutExtension(inputPath).Replace("_input", "_label", StringComparison.Ordinal));
             var label = ReadFirstLine(labelPath);
             var sensorName = label ?? driver ?? Path.GetFileName(devicePath);
@@ -58,10 +53,57 @@ internal static class HwmonTemperatureReader
                 continue;
             }
 
+            candidates.Add((inputPath, label, GetLabelPriority(label), ExtractSensorIndex(inputPath)));
+        }
+
+        foreach (var candidate in candidates.OrderBy(c => c.Priority).ThenBy(c => c.Index))
+        {
+            var raw = ReadFirstLine(candidate.InputPath);
+            if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var millidegrees))
+            {
+                continue;
+            }
+
+            var celsius = millidegrees / 1000d;
+            var sensorName = candidate.Label ?? driver ?? Path.GetFileName(devicePath);
             return new TemperatureReading(celsius, DateTimeOffset.UtcNow, sensorName);
         }
 
         return null;
+    }
+
+    private static int GetLabelPriority(string? label)
+    {
+        if (label is null)
+        {
+            return 3;
+        }
+
+        if (label.Contains("tctl", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (label.Contains("tdie", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (label.Contains("package", StringComparison.OrdinalIgnoreCase))
+        {
+            return 2;
+        }
+
+        return 3;
+    }
+
+    private static int ExtractSensorIndex(string inputPath)
+    {
+        var fileName = Path.GetFileName(inputPath);
+        var digits = new string(fileName.SkipWhile(c => !char.IsDigit(c)).TakeWhile(char.IsDigit).ToArray());
+        return int.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index)
+            ? index
+            : int.MaxValue;
     }
 
     private static string ReadMetadata(string devicePath) =>

@@ -2,12 +2,21 @@
 using CpuTFacade = global::CpuT.CpuT;
 
 var result = CpuTFacade.Read();
-Console.WriteLine($"Status: {result.Status}");
-if (result.Status == TemperatureStatus.Valid)
+if (result.IsValid)
 {
-	Console.WriteLine($"Temperature: {result.Reading!.Celsius:F1} C");
+	Console.WriteLine($"Temp: {result.Reading!.Celsius:F1}°C");
+	Console.WriteLine("Status: Success");
 }
-else if (result.Status == TemperatureStatus.Failed)
+else
 {
-	Console.WriteLine($"Failure: {result.FailureReason} - {result.Error}");
+	Console.WriteLine($"Temp: {(result.Status == TemperatureStatus.Invalid ? "Invalid" : "Unavailable")}");
+	Console.WriteLine($"Status: {(result.Status == TemperatureStatus.Invalid ? "Failed" : result.Status)}");
+
+	if (!string.IsNullOrWhiteSpace(result.Error))
+	{
+		var reason = result.Status == TemperatureStatus.Failed
+			? $"{result.FailureReason} - "
+			: string.Empty;
+		Console.WriteLine($"Reason: {reason}{result.Error}");
+	}
 }

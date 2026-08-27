@@ -20,7 +20,25 @@ internal sealed class HwmonGenericScanTemperatureProvider : ITemperatureProvider
             return TemperatureResult.Unsupported("The Linux hwmon filesystem is unavailable.");
         }
 
-        foreach (var devicePath in Directory.EnumerateDirectories(hwmonRoot).OrderBy(path => path))
+        IEnumerable<string> devicePaths;
+        try
+        {
+            devicePaths = Directory.EnumerateDirectories(hwmonRoot).OrderBy(path => path).ToArray();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return TemperatureResult.Failed(
+                "Access to the Linux hwmon filesystem was denied.",
+                TemperatureFailureReason.AccessDenied);
+        }
+        catch (IOException)
+        {
+            return TemperatureResult.Failed(
+                "An I/O error occurred while scanning the Linux hwmon filesystem.",
+                TemperatureFailureReason.ProviderError);
+        }
+
+        foreach (var devicePath in devicePaths)
         {
             if (HwmonTemperatureReader.IsExcludedDevice(devicePath))
             {
