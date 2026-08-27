@@ -27,7 +27,7 @@ internal sealed class ProviderDiscovery
             }
             catch (Exception exception)
             {
-                lastFailure = Failure(exception);
+                lastFailure = ExceptionMapper.ToFailure(exception);
                 continue;
             }
 
@@ -70,7 +70,7 @@ internal sealed class ProviderDiscovery
             }
             catch (Exception exception)
             {
-                lastFailure = Failure(exception);
+                lastFailure = ExceptionMapper.ToFailure(exception);
                 continue;
             }
 
@@ -105,7 +105,7 @@ internal sealed class ProviderDiscovery
         }
         catch (Exception exception)
         {
-            return Failure(exception);
+            return ExceptionMapper.ToFailure(exception);
         }
     }
 
@@ -123,12 +123,7 @@ internal sealed class ProviderDiscovery
         }
         catch (Exception exception)
         {
-            return Failure(exception);
+            return ExceptionMapper.ToFailure(exception);
         }
     }
-
-    private static TemperatureResult Failure(Exception exception) =>
-        exception is UnauthorizedAccessException
-            ? TemperatureResult.Failed("The temperature provider access was denied.", TemperatureFailureReason.AccessDenied)
-            : TemperatureResult.Failed("The temperature provider encountered an error.", TemperatureFailureReason.ProviderError);
 }
