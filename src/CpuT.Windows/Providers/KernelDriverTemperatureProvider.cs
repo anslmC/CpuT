@@ -7,7 +7,7 @@ internal sealed class KernelDriverTemperatureProvider : ITemperatureProvider
     public bool IsPlatformSupported() => OperatingSystem.IsWindows();
 
     public TemperatureResult TryRead() =>
-        TemperatureResult.Unsupported("The Windows kernel driver provider is not implemented yet.");
+        TemperatureResult.Unsupported("No bundled Windows kernel driver telemetry source is available.");
 
     public Task<TemperatureResult> TryReadAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(TryRead());

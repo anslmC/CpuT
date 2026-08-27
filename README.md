@@ -6,7 +6,7 @@ Windows is the primary target and Linux is supported from the initial architectu
 
 ## Current status
 
-The repository contains the Core API, provider discovery/cache structure, Windows and Linux provider boundaries, composition project, tests, and sample. Hardware access providers are intentionally not implemented yet and therefore report `Unsupported`.
+The repository contains the Core API, provider discovery/cache structure, Windows and Linux provider boundaries, composition project, tests, and sample. Linux can read CPU-related hwmon sensors through known drivers and a metadata-filtered generic fallback. Windows can read CPU-identified WMI/ACPI thermal zones when firmware exposes them; the kernel-driver provider remains unsupported because CpuT does not bundle or install a driver.
 
 ## Baseline
 
