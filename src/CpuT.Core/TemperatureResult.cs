@@ -1,5 +1,15 @@
 namespace CpuT.Core;
 
+/// <summary>
+/// Represents the outcome of a CPU temperature read.
+/// </summary>
+/// <remarks>
+/// The public positional constructor permits non-valid combinations for
+/// compatibility with provider results. Results returned through CpuT are
+/// normalized by the provider pipeline; use <see cref="Valid(TemperatureReading)"/>
+/// for a successful result and provide a finite reading within the supported
+/// Celsius range.
+/// </remarks>
 public sealed record TemperatureResult(
     TemperatureStatus Status,
     TemperatureReading? Reading = null,

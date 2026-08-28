@@ -6,6 +6,14 @@ namespace CpuT.Core.Tests;
 public class CpuTCoreTests
 {
     [Fact]
+    public void NullProviderCollectionThrowsArgumentNullException()
+    {
+        var exception = Assert.Throws<ArgumentNullException>(() => new CoreCpuT(null!));
+
+        Assert.Equal("providers", exception.ParamName);
+    }
+
+    [Fact]
     public void EmptyProviderListIsUnsupported()
     {
         var result = new CoreCpuT([]).Read();

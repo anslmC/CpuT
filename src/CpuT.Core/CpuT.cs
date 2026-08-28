@@ -15,6 +15,7 @@ public sealed class CpuT : IDisposable
     /// <param name="providers">The providers to use for temperature discovery and reads.</param>
     public CpuT(IEnumerable<ITemperatureProvider> providers)
     {
+        ArgumentNullException.ThrowIfNull(providers);
         cache = new ProviderCache(providers);
     }
  
