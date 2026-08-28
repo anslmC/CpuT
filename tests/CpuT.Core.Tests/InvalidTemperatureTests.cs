@@ -9,6 +9,51 @@ namespace CpuT.Core.Tests;
 public class InvalidTemperatureTests
 {
     [Fact]
+    public void ValidStatusWithoutReadingIsRejected()
+    {
+        using var cpu = new CoreCpuT([
+            FakeTemperatureProvider.FromResult(new TemperatureResult(TemperatureStatus.Valid))
+        ]);
+
+        var result = cpu.Read();
+
+        Assert.False(result.IsValid);
+        Assert.Equal(TemperatureStatus.Invalid, result.Status);
+        Assert.Null(result.Reading);
+    }
+
+    [Fact]
+    public async Task AsyncValidStatusWithoutReadingIsRejected()
+    {
+        using var cpu = new CoreCpuT([
+            FakeTemperatureProvider.FromResult(new TemperatureResult(TemperatureStatus.Valid))
+        ]);
+
+        var result = await cpu.ReadAsync();
+
+        Assert.False(result.IsValid);
+        Assert.Equal(TemperatureStatus.Invalid, result.Status);
+        Assert.Null(result.Reading);
+    }
+
+    [Fact]
+    public void NonValidStatusWithReadingRemainsNonValid()
+    {
+        var reading = new TemperatureReading(65.0, DateTimeOffset.UnixEpoch);
+        using var cpu = new CoreCpuT([
+            FakeTemperatureProvider.FromResult(new TemperatureResult(
+                TemperatureStatus.Unavailable,
+                reading))
+        ]);
+
+        var result = cpu.Read();
+
+        Assert.False(result.IsValid);
+        Assert.Equal(TemperatureStatus.Unavailable, result.Status);
+        Assert.Equal(reading, result.Reading);
+    }
+
+    [Fact]
     public void ReadingBelowMinimumIsRejected()
     {
         using var cpu = new CoreCpuT([FakeTemperatureProvider.Valid(-51.0)]);

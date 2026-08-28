@@ -7,9 +7,14 @@ internal static class TemperatureValidation
 
     public static TemperatureResult Validate(TemperatureResult result)
     {
-        if (!result.IsValid || result.Reading is null)
+        if (result.Status != TemperatureStatus.Valid)
         {
             return result;
+        }
+
+        if (result.Reading is null)
+        {
+            return TemperatureResult.Invalid("A valid temperature result must include a reading.");
         }
 
         var value = result.Reading.Celsius;

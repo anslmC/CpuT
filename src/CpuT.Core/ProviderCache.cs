@@ -10,7 +10,10 @@ internal sealed class ProviderCache : IDisposable
     private readonly IReadOnlyList<ITemperatureProvider> allProviders;
     private ITemperatureProvider? provider;
     private int consecutiveFailures;
+    private int activeOperations;
     private bool disposed;
+    private bool disposalCompleted;
+    private AggregateException? disposalException;
 
     public ProviderCache(IEnumerable<ITemperatureProvider> providers)
     {
@@ -20,40 +23,65 @@ internal sealed class ProviderCache : IDisposable
 
     public TemperatureResult Read()
     {
-        ThrowIfDisposed();
-
-        var cachedProvider = GetProvider();
-        if (cachedProvider is not null)
-            return Record(cachedProvider, ReadProvider(cachedProvider));
-
-        discoveryGate.Wait();
+        EnterOperation();
         try
         {
-            return DiscoverSynchronously();
+            discoveryGate.Wait();
+            try
+            {
+                return DiscoverSynchronously();
+            }
+            finally
+            {
+                discoveryGate.Release();
+            }
         }
         finally
         {
-            discoveryGate.Release();
+            ExitOperation();
         }
     }
 
     public async Task<TemperatureResult> ReadAsync(CancellationToken cancellationToken = default)
     {
-        ThrowIfDisposed();
-        cancellationToken.ThrowIfCancellationRequested();
-
-        var cachedProvider = GetProvider();
-        if (cachedProvider is not null)
-            return Record(cachedProvider, await ReadProviderAsync(cachedProvider, cancellationToken));
-
-        await discoveryGate.WaitAsync(cancellationToken);
+        EnterOperation();
         try
         {
-            return await DiscoverAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await discoveryGate.WaitAsync(cancellationToken);
+            try
+            {
+                return await DiscoverAsync(cancellationToken);
+            }
+            finally
+            {
+                discoveryGate.Release();
+            }
         }
         finally
         {
-            discoveryGate.Release();
+            ExitOperation();
+        }
+    }
+
+    private void EnterOperation()
+    {
+        lock (sync)
+        {
+            ThrowIfDisposed();
+            activeOperations++;
+        }
+    }
+
+    private void ExitOperation()
+    {
+        lock (sync)
+        {
+            activeOperations--;
+            if (activeOperations == 0)
+            {
+                Monitor.PulseAll(sync);
+            }
         }
     }
 
@@ -199,18 +227,77 @@ internal sealed class ProviderCache : IDisposable
 
     public void Dispose()
     {
-        if (disposed)
-            return;
-
-        disposed = true;
-        discoveryGate.Dispose();
-
-        foreach (var candidate in allProviders)
+        lock (sync)
         {
-            if (candidate is IDisposable disposable)
+            if (disposed)
             {
-                disposable.Dispose();
+                while (!disposalCompleted)
+                {
+                    Monitor.Wait(sync);
+                }
+
+                if (disposalException is not null)
+                    throw disposalException;
+
+                return;
+            }
+
+            disposed = true;
+            while (activeOperations != 0)
+            {
+                Monitor.Wait(sync);
             }
         }
+
+        try
+        {
+            var exceptions = new List<Exception>();
+            try
+            {
+                discoveryGate.Dispose();
+            }
+            catch (Exception exception)
+            {
+                exceptions.Add(exception);
+            }
+
+            var disposedProviders = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            foreach (var candidate in allProviders)
+            {
+                if (!disposedProviders.Add(candidate))
+                    continue;
+
+                if (candidate is IDisposable disposable)
+                {
+                    try
+                    {
+                        disposable.Dispose();
+                    }
+                    catch (Exception exception)
+                    {
+                        exceptions.Add(exception);
+                    }
+                }
+            }
+
+            if (exceptions.Count > 0)
+            {
+                lock (sync)
+                {
+                    disposalException = new AggregateException(exceptions);
+                }
+            }
+        }
+        finally
+        {
+            lock (sync)
+            {
+                disposalCompleted = true;
+                Monitor.PulseAll(sync);
+            }
+        }
+
+        if (disposalException is not null)
+            throw disposalException;
     }
 }

@@ -24,6 +24,8 @@ internal sealed class FakeTemperatureProvider : ITemperatureProvider
         TemperatureFailureReason failureReason = TemperatureFailureReason.ProviderError) =>
         new(TemperatureResult.Failed(error, failureReason));
 
+    public static FakeTemperatureProvider FromResult(TemperatureResult result) => new(result);
+
     public static FakeTemperatureProvider Valid(double celsius) =>
         new(TemperatureResult.Valid(new TemperatureReading(
             celsius,
