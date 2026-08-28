@@ -9,21 +9,41 @@ internal static class HwmonTemperatureReader
     private static readonly string[] CpuTerms = ["cpu", "core", "package", "processor", "tdie", "tctl"];
     private static readonly string[] ExcludedTerms = ["gpu", "nvme", "drivetemp", "acpitz", "battery", "pch", "board"];
 
-    public static bool IsExcludedDevice(string devicePath)
+    public static bool IsExcludedDevice(string devicePath, Func<string, string?>? readFirstLine = null)
     {
-        var metadata = ReadMetadata(devicePath);
+        var metadata = ReadMetadata(devicePath, readFirstLine ?? ReadFirstLine);
         return ContainsTerm(metadata, ExcludedTerms);
     }
 
-    public static TemperatureReading? TryReadCpuTemperature(string devicePath, bool requireKnownDriver)
+    public static (TemperatureReading? Reading, TemperatureResult? Failure) TryReadCpuTemperature(
+        string devicePath,
+        bool requireKnownDriver,
+        Func<string, string?>? readFirstLine = null)
     {
-        var metadata = ReadMetadata(devicePath);
-        var driver = ReadFirstLine(Path.Combine(devicePath, "name"));
+        try
+        {
+            return TryReadCpuTemperatureCore(devicePath, requireKnownDriver, readFirstLine);
+        }
+        catch (HwmonReadException exception)
+        {
+            return (null, exception.Result);
+        }
+    }
+
+    private static (TemperatureReading? Reading, TemperatureResult? Failure) TryReadCpuTemperatureCore(
+        string devicePath,
+        bool requireKnownDriver,
+        Func<string, string?>? readFirstLine = null)
+    {
+        var lineReader = readFirstLine ?? ReadFirstLine;
+        readFirstLine = path => ReadClassified(lineReader, path);
+        var metadata = ReadMetadata(devicePath, readFirstLine);
+        var driver = readFirstLine(Path.Combine(devicePath, "name"));
         var isKnownDriver = driver is not null && CpuDrivers.Contains(driver, StringComparer.OrdinalIgnoreCase);
 
         if (requireKnownDriver && !isKnownDriver || !requireKnownDriver && !isKnownDriver && !ContainsTerm(metadata, CpuTerms))
         {
-            return null;
+            return (null, null);
         }
 
         List<string> inputPaths;
@@ -31,13 +51,13 @@ internal static class HwmonTemperatureReader
         {
             inputPaths = Directory.EnumerateFiles(devicePath, "temp*_input").ToList();
         }
-        catch (IOException)
+        catch (IOException exception) when (IsAccessDenied(exception))
         {
-            return null;
+            return (null, AccessDeniedResult());
         }
         catch (UnauthorizedAccessException)
         {
-            return null;
+            return (null, AccessDeniedResult());
         }
 
         var candidates = new List<(string InputPath, string? Label, int Priority, int Index)>();
@@ -45,7 +65,7 @@ internal static class HwmonTemperatureReader
         foreach (var inputPath in inputPaths)
         {
             var labelPath = Path.Combine(devicePath, Path.GetFileNameWithoutExtension(inputPath).Replace("_input", "_label", StringComparison.Ordinal));
-            var label = ReadFirstLine(labelPath);
+            var label = readFirstLine(labelPath);
             var sensorName = label ?? driver ?? Path.GetFileName(devicePath);
 
             if (ContainsTerm(sensorName, ExcludedTerms) || !isKnownDriver && !ContainsTerm(sensorName, CpuTerms) && !ContainsTerm(metadata, CpuTerms))
@@ -58,7 +78,7 @@ internal static class HwmonTemperatureReader
 
         foreach (var candidate in candidates.OrderBy(c => c.Priority).ThenBy(c => c.Index))
         {
-            var raw = ReadFirstLine(candidate.InputPath);
+            var raw = readFirstLine(candidate.InputPath);
             if (!long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var millidegrees))
             {
                 continue;
@@ -66,10 +86,10 @@ internal static class HwmonTemperatureReader
 
             var celsius = millidegrees / 1000d;
             var sensorName = candidate.Label ?? driver ?? Path.GetFileName(devicePath);
-            return new TemperatureReading(celsius, DateTimeOffset.UtcNow, sensorName);
+            return (new TemperatureReading(celsius, DateTimeOffset.UtcNow, sensorName), null);
         }
 
-        return null;
+        return (null, null);
     }
 
     private static int GetLabelPriority(string? label)
@@ -106,15 +126,15 @@ internal static class HwmonTemperatureReader
             : int.MaxValue;
     }
 
-    private static string ReadMetadata(string devicePath) =>
+    private static string ReadMetadata(string devicePath, Func<string, string?> readFirstLine) =>
         string.Join(' ',
-            ReadFirstLine(Path.Combine(devicePath, "name")),
-            ReadFirstLine(Path.Combine(devicePath, "modalias")),
-            ReadLabels(devicePath));
+            readFirstLine(Path.Combine(devicePath, "name")),
+            readFirstLine(Path.Combine(devicePath, "modalias")),
+            ReadLabels(devicePath, readFirstLine));
 
-    private static string ReadLabels(string devicePath) =>
+    private static string ReadLabels(string devicePath, Func<string, string?> readFirstLine) =>
         string.Join(' ', EnumerateLabelPaths(devicePath)
-            .Select(ReadFirstLine)
+            .Select(readFirstLine)
             .Where(label => label is not null));
 
     private static IEnumerable<string> EnumerateLabelPaths(string devicePath)
@@ -123,13 +143,13 @@ internal static class HwmonTemperatureReader
         {
             return Directory.EnumerateFiles(devicePath, "temp*_label").OrderBy(path => path).ToArray();
         }
-        catch (IOException)
+        catch (IOException exception) when (IsAccessDenied(exception))
         {
-            return [];
+            throw new HwmonReadException(AccessDeniedResult());
         }
         catch (UnauthorizedAccessException)
         {
-            return [];
+            throw new HwmonReadException(AccessDeniedResult());
         }
     }
 
@@ -142,13 +162,60 @@ internal static class HwmonTemperatureReader
         {
             return File.ReadLines(path).FirstOrDefault()?.Trim();
         }
-        catch (IOException)
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (DirectoryNotFoundException)
         {
             return null;
         }
         catch (UnauthorizedAccessException)
         {
+            throw new HwmonReadException(
+                TemperatureResult.Failed(
+                    "Access to Linux hwmon temperature telemetry was denied. Adjusting udev rules or group membership may resolve this.",
+                    TemperatureFailureReason.AccessDenied));
+        }
+        catch (IOException exception) when (IsAccessDenied(exception))
+        {
+            throw new HwmonReadException(
+                TemperatureResult.Failed(
+                    "Access to Linux hwmon temperature telemetry was denied. Adjusting udev rules or group membership may resolve this.",
+                    TemperatureFailureReason.AccessDenied));
+        }
+        catch (IOException)
+        {
             return null;
         }
+    }
+
+    private static bool IsAccessDenied(IOException exception) =>
+        (exception.HResult & 0xFFFF) is 5 or 13;
+
+    private static string? ReadClassified(Func<string, string?> readFirstLine, string path)
+    {
+        try
+        {
+            return readFirstLine(path);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new HwmonReadException(AccessDeniedResult());
+        }
+        catch (IOException exception) when (IsAccessDenied(exception))
+        {
+                throw new HwmonReadException(AccessDeniedResult());
+        }
+    }
+
+    private static TemperatureResult AccessDeniedResult() =>
+        TemperatureResult.Failed(
+            "Access to Linux hwmon temperature telemetry was denied. Adjusting udev rules or group membership may resolve this.",
+            TemperatureFailureReason.AccessDenied);
+
+    internal sealed class HwmonReadException(TemperatureResult result) : Exception
+    {
+        public TemperatureResult Result { get; } = result;
     }
 }

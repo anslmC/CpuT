@@ -40,15 +40,27 @@ internal sealed class HwmonKnownDriverTemperatureProvider : ITemperatureProvider
 
         foreach (var devicePath in devicePaths)
         {
-            if (HwmonTemperatureReader.IsExcludedDevice(devicePath))
+            try
             {
-                continue;
-            }
+                if (HwmonTemperatureReader.IsExcludedDevice(devicePath))
+                {
+                    continue;
+                }
 
-            var reading = HwmonTemperatureReader.TryReadCpuTemperature(devicePath, requireKnownDriver: true);
-            if (reading is not null)
+                var result = HwmonTemperatureReader.TryReadCpuTemperature(devicePath, requireKnownDriver: true);
+                if (result.Failure is not null)
+                {
+                    return result.Failure;
+                }
+
+                if (result.Reading is not null)
+                {
+                    return TemperatureResult.Valid(result.Reading);
+                }
+            }
+            catch (HwmonTemperatureReader.HwmonReadException exception)
             {
-                return TemperatureResult.Valid(reading);
+                return exception.Result;
             }
         }
 

@@ -185,6 +185,34 @@ public class LinuxStructureTests
         Assert.Equal(65.0, result.Reading?.Celsius);
     }
 
+    [Fact]
+    public void AccessDeniedSensorFileReturnsAccessDeniedFailure()
+    {
+        using var fixture = HwmonFixture.Create("k10temp", ("temp1", "Tctl", "65000"));
+
+        var result = HwmonTemperatureReader.TryReadCpuTemperature(
+            fixture.DevicePath,
+            requireKnownDriver: true,
+            path => path.EndsWith("_input", StringComparison.Ordinal)
+                ? throw new UnauthorizedAccessException()
+                : ReadFixtureLine(path));
+
+        Assert.Null(result.Reading);
+        Assert.Equal(TemperatureStatus.Failed, result.Failure?.Status);
+        Assert.Equal(TemperatureFailureReason.AccessDenied, result.Failure?.FailureReason);
+    }
+
+    [Fact]
+    public void MissingSensorFileRemainsUnsupported()
+    {
+        using var fixture = HwmonFixture.Create("k10temp", ("temp1", "Tctl", "65000"));
+        File.Delete(Path.Combine(fixture.DevicePath, "temp1_input"));
+
+        var result = CreateKnownDriverProvider(fixture.Root).TryRead();
+
+        Assert.Equal(TemperatureStatus.Unsupported, result.Status);
+    }
+
     private static ITemperatureProvider CreateKnownDriverProvider(string root) =>
         CreateProvider("CpuT.Linux.Providers.HwmonKnownDriverTemperatureProvider", root);
 
@@ -198,6 +226,22 @@ public class LinuxStructureTests
     {
         var providerType = typeof(LinuxProviderList).Assembly.GetType(typeName, throwOnError: true)!;
         return (ITemperatureProvider)Activator.CreateInstance(providerType, root)!;
+    }
+
+    private static string? ReadFixtureLine(string path)
+    {
+        try
+        {
+            return File.ReadLines(path).FirstOrDefault()?.Trim();
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return null;
+        }
     }
 
     private sealed class SupportedProvider(ITemperatureProvider inner) : ITemperatureProvider
@@ -218,6 +262,8 @@ public class LinuxStructureTests
         }
 
         public string Root { get; }
+
+        public string DevicePath => Path.Combine(Root, "hwmon0");
 
         public static HwmonFixture Create(
             string driver,
