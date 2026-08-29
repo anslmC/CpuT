@@ -1,8 +1,12 @@
+<p align="center">
+  <img src="assets\cpuico.png" alt="img" width="200" />
+</p>
+
 # CpuT: CPU Temperature Library
 
 A lightweight, framework-independent .NET library for accessing CPU temperature readings.
 
-CpuT provides temperature readings on demand through a small API. It does not perform polling, scheduling, logging, alerts, or background monitoring.
+CpuT provides on-demand temperature readings through a small API. It does not perform polling, scheduling, logging, alerts, or background monitoring.
 
 Windows is the primary target, Linux is supported, and macOS is currently out of scope.
 
@@ -10,7 +14,7 @@ Windows is the primary target, Linux is supported, and macOS is currently out of
 
 ## What This Library Solves
 
-CPU temperature access varies across platforms, hardware, drivers, and firmware. CpuT provides a focused API that handles:
+CPU temperature access varies across platforms, hardware, drivers, and firmware. CpuT provides:
 
 * Available temperature sources
 * Reading validation
@@ -23,7 +27,71 @@ CPU temperature access varies across platforms, hardware, drivers, and firmware.
 
 Broad hardware libraries such as LibreHardwareMonitor provide complete hardware telemetry. CpuT focuses specifically on CPU temperature access.
 
-CpuT provides a small, focused API with provider fallback and validation, without requiring applications to implement platform-specific CPU temperature logic themselves.
+It provides a small API without requiring applications to implement platform-specific temperature logic.
+
+## Installation
+
+### .NET CLI
+
+```bash
+dotnet add package CpuT
+```
+
+### Package Manager Console
+
+```powershell
+Install-Package CpuT
+```
+
+### PackageReference
+
+```xml
+<PackageReference Include="CpuT" Version="1.0.0" />
+```
+
+## Basic Usage
+
+```csharp
+using CpuT;
+
+using var cpuT = new CpuT();
+
+var result = cpuT.GetTemperature();
+
+if (result.IsAvailable)
+{
+    Console.WriteLine($"CPU Temperature: {result.TemperatureCelsius}°C");
+}
+else
+{
+    Console.WriteLine($"CPU temperature unavailable: {result.Status}");
+}
+```
+
+## Use Cases
+
+CpuT can be used in:
+
+* System monitoring applications
+* Periodic polling
+* Background services
+* Logging and historical monitoring
+* Temperature alerts
+* Dashboards and monitoring tools
+
+CpuT does not manage polling or scheduling. Applications control when readings are requested.
+
+```csharp
+while (!cancellationToken.IsCancellationRequested)
+{
+    var result = cpuT.GetTemperature();
+
+    if (result.IsAvailable)
+        Console.WriteLine($"{result.TemperatureCelsius}°C");
+
+    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+}
+```
 
 ## Current Status
 
