@@ -1,9 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\CpuT.Core\CpuT.Core.csproj" />
-    <ProjectReference Include="..\CpuT.Windows\CpuT.Windows.csproj" />
-    <ProjectReference Include="..\CpuT.Linux\CpuT.Linux.csproj" />
+    <ProjectReference Include="..\CpuT.Core\CpuT.Core.csproj" PrivateAssets="All" />
+    <ProjectReference Include="..\CpuT.Windows\CpuT.Windows.csproj" PrivateAssets="All" />
+    <ProjectReference Include="..\CpuT.Linux\CpuT.Linux.csproj" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+    <None Include="..\CpuT.Core\bin\Release\net10.0\CpuT.Core.dll" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Core\bin\Release\net10.0\CpuT.Core.xml" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Windows\bin\Release\net10.0\CpuT.Windows.dll" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Windows\bin\Release\net10.0\CpuT.Windows.xml" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Linux\bin\Release\net10.0\CpuT.Linux.dll" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Linux\bin\Release\net10.0\CpuT.Linux.xml" Pack="true" PackagePath="lib\net10.0\" />
   </ItemGroup>
 
   <PropertyGroup>

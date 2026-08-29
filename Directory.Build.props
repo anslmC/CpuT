@@ -5,8 +5,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <Authors>CpuT contributors</Authors>
-    <Description>Focused CPU temperature library for Windows and Linux.</Description>
+    <Description>A focused CPU temperature library for Windows and Linux. Get current CPU temperature readings on demand with validation and provider fallback.</Description>
+    <PackageTags>cpu;temperature;hardware;sensors;windows;linux;cross-platform;dotnet</PackageTags>
 
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/anslmC/CpuT.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 </Project>
