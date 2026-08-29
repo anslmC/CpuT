@@ -1,9 +1,19 @@
 # Project Context
 
-CPU Temperature Monitoring API is a Windows-first, Linux-supported .NET library dedicated to CPU temperature monitoring.
+CpuT is a focused CPU temperature library for Windows and Linux. It provides on-demand CPU temperature readings through a provider-based architecture with fallback and validation.
 
-The architecture keeps public result and orchestration logic in `CpuT.Core`, Windows providers in `CpuT.Windows`, Linux providers in `CpuT.Linux`, and platform composition in `CpuT`.
+## Architecture
 
-The provider cache invalidates after three consecutive `Failed` or `Invalid` results. `Valid` resets the counter, `Unavailable` does not increment it, and failed rediscovery starts a short bounded cooldown. Shared discovery is serialized; there is no background polling worker.
+The public API and result semantics live in `CpuT.Core`. Platform-specific providers are implemented in `CpuT.Windows` (for WMI/ACPI thermal zones) and `CpuT.Linux` (for hwmon sensors), with composition logic in `CpuT`.
 
-Actual kernel-driver, WMI/ACPI, and Linux hwmon access is intentionally not implemented in the initial structure. macOS is unsupported and has no implementation project.
+## Provider Behavior
+
+The library discovers and caches temperature providers. When a provider fails or returns an invalid reading, the library may attempt to use an alternate provider. Provider rediscovery is serialized and does not run in the background—readings only occur when explicitly requested by the consumer.
+
+## Current Scope
+
+* **Windows:** CPU-identified WMI/ACPI thermal zones when exposed by firmware
+* **Linux:** CPU-related `hwmon` sensors through known drivers and a metadata-filtered fallback
+* **macOS:** Unsupported and has no implementation
+
+The library does not bundle or install drivers, perform background polling, or offer continuous monitoring. An unavailable or unsupported result does not represent a failure; it indicates that the environment cannot currently provide a usable reading.
