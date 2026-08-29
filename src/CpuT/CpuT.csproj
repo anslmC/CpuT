@@ -8,12 +8,12 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="\" />
-    <None Include="..\CpuT.Core\bin\Release\net10.0\CpuT.Core.dll" Pack="true" PackagePath="lib\net10.0\" />
-    <None Include="..\CpuT.Core\bin\Release\net10.0\CpuT.Core.xml" Pack="true" PackagePath="lib\net10.0\" />
-    <None Include="..\CpuT.Windows\bin\Release\net10.0\CpuT.Windows.dll" Pack="true" PackagePath="lib\net10.0\" />
-    <None Include="..\CpuT.Windows\bin\Release\net10.0\CpuT.Windows.xml" Pack="true" PackagePath="lib\net10.0\" />
-    <None Include="..\CpuT.Linux\bin\Release\net10.0\CpuT.Linux.dll" Pack="true" PackagePath="lib\net10.0\" />
-    <None Include="..\CpuT.Linux\bin\Release\net10.0\CpuT.Linux.xml" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Core\bin\$(Configuration)\net10.0\CpuT.Core.dll" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Core\bin\$(Configuration)\net10.0\CpuT.Core.xml" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Windows\bin\$(Configuration)\net10.0\CpuT.Windows.dll" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Windows\bin\$(Configuration)\net10.0\CpuT.Windows.xml" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Linux\bin\$(Configuration)\net10.0\CpuT.Linux.dll" Pack="true" PackagePath="lib\net10.0\" />
+    <None Include="..\CpuT.Linux\bin\$(Configuration)\net10.0\CpuT.Linux.xml" Pack="true" PackagePath="lib\net10.0\" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -22,5 +22,12 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <Target Name="EnsureReferencedProjectsBuilt" BeforeTargets="Pack">
+    <MSBuild
+      Projects="..\CpuT.Core\CpuT.Core.csproj;..\CpuT.Windows\CpuT.Windows.csproj;..\CpuT.Linux\CpuT.Linux.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration)" />
+  </Target>
 
 </Project>
