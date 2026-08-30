@@ -27,7 +27,10 @@ CPU temperature access varies across platforms, hardware, drivers, and firmware.
 
 Broad hardware libraries such as LibreHardwareMonitor provide complete hardware telemetry. CpuT focuses specifically on CPU temperature access.
 
-It provides a small API without requiring applications to implement platform-specific temperature logic.
+Choose CpuT when you need a lightweight, standalone library for CPU temperature. It handles provider fallback and validation without requiring platform-specific logic in your application.
+
+When a reliable temperature cannot be read, CpuT returns a meaningful unavailable or failure result rather than treating a value such as `0°C` as a valid temperature.
+
 
 ## Installation
 
